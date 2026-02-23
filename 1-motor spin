@@ -1,0 +1,77 @@
+#include <ESP32Servo.h>
+
+Servo m1, m2, m3, m4;
+
+// Pins based on your previous setup
+// Red Handles: G27, G12
+// Other: G13, G14
+int pins[] = {13, 12, 14, 27}; 
+String motorNames[] = {"Motor 1 (G13)", "Motor 2 (G12 - Red)", "Motor 3 (G14)", "Motor 4 (G27 - Red)"};
+
+void setup() {
+  Serial.begin(115200);
+  
+  ESP32PWM::allocateTimer(0);
+  ESP32PWM::allocateTimer(1);
+  ESP32PWM::allocateTimer(2);
+  ESP32PWM::allocateTimer(3);
+
+  m1.attach(pins[0], 1000, 2000);
+  m2.attach(pins[1], 1000, 2000);
+  m3.attach(pins[2], 1000, 2000);
+  m4.attach(pins[3], 1000, 2000);
+
+  // Initialize all to STOP
+  stopAll();
+
+  Serial.println("========================================");
+  Serial.println("      SINGLE MOTOR TEST MODE          ");
+  Serial.println("========================================");
+  Serial.println("COMMANDS:");
+  Serial.println("1, 2, 3, or 4 -> Spin that motor ONLY (1180us)");
+  Serial.println("H -> Send HIGH to all (for Calibration)");
+  Serial.println("L -> Send LOW to all (to Arm)");
+  Serial.println("0 -> STOP EVERYTHING");
+  Serial.println("========================================");
+}
+
+void loop() {
+  if (Serial.available()) {
+    char c = Serial.read();
+
+    if (c == 'H' || c == 'h') {
+      Serial.println("All Motors: HIGH");
+      writeAll(2000);
+    }
+    else if (c == 'L' || c == 'l') {
+      Serial.println("All Motors: LOW (Armed)");
+      writeAll(1000);
+    }
+    else if (c == '1') { testMotor(1, m1); }
+    else if (c == '2') { testMotor(2, m2); }
+    else if (c == '3') { testMotor(3, m3); }
+    else if (c == '4') { testMotor(4, m4); }
+    else if (c == '0') {
+      Serial.println("EMERGENCY STOP");
+      stopAll();
+    }
+  }
+}
+
+void testMotor(int num, Servo &s) {
+  stopAll(); // Ensure others are off
+  Serial.print("Testing ");
+  Serial.println(motorNames[num-1]);
+  s.writeMicroseconds(1180); // Small spin
+}
+
+void stopAll() {
+  writeAll(1000);
+}
+
+void writeAll(int val) {
+  m1.writeMicroseconds(val);
+  m2.writeMicroseconds(val);
+  m3.writeMicroseconds(val);
+  m4.writeMicroseconds(val);
+}
