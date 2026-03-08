@@ -1,0 +1,80 @@
+#include "BluetoothSerial.h"
+
+BluetoothSerial SerialBT;
+
+// Fixed PCB Pins
+const int M1 = 13;
+const int M2 = 12; // Problem Pin
+const int M3 = 14;
+const int M4 = 27; // Problem Pin
+
+// PWM Settings (New API Syntax)
+const int freq = 50;       // 50Hz for ESCs
+const int res = 16;        // 16-bit resolution
+const int minPulse = 3277; // 1000us
+const int maxPulse = 6554; // 2000us
+
+int currentThrottle = minPulse;
+
+void setup() {
+  Serial.begin(115200);
+  SerialBT.begin("F450_PCB_FIX_V2");
+
+  // 1. Force pins to a clean state
+  pinMode(M2, OUTPUT);
+  pinMode(M4, OUTPUT);
+  digitalWrite(M2, LOW);
+  digitalWrite(M4, LOW);
+  delay(100);
+
+  // 2. New ESP32 3.0+ PWM Attachment
+  // Syntax: ledcAttach(pin, frequency, resolution)
+  ledcAttach(M1, freq, res);
+  ledcAttach(M2, freq, res);
+  ledcAttach(M3, freq, res);
+  ledcAttach(M4, freq, res);
+
+  // 3. THE ULTIMATE ARMING SEQUENCE
+  Serial.println("FORCE ARMING START...");
+  
+  // Wake up ESCs with sub-minimum signal
+  setAllMotors(3000); 
+  delay(1000);
+  
+  // Set to exactly 1000us
+  setAllMotors(minPulse);
+  Serial.println("ESCs should beep now! Waiting 5 seconds...");
+  delay(5000);
+  
+  Serial.println("READY. Connect via Bluetooth.");
+}
+
+void loop() {
+  if (SerialBT.available()) {
+    char cmd = SerialBT.read();
+    
+    if (cmd == 'U' || cmd == 'u') currentThrottle += 50; 
+    if (cmd == 'D' || cmd == 'd') currentThrottle -= 50;
+    if (cmd == 'S' || cmd == 's') currentThrottle = minPulse;
+
+    currentThrottle = constrain(currentThrottle, minPulse, maxPulse);
+    setAllMotors(currentThrottle);
+
+    SerialBT.print("Throttle Pulse: ");
+    SerialBT.println(currentThrottle);
+  }
+
+  // FAILSAFE
+  if (!SerialBT.hasClient() && currentThrottle > minPulse) {
+    currentThrottle = minPulse;
+    setAllMotors(minPulse);
+  }
+}
+
+void setAllMotors(int pulse) {
+  // In 3.0+, we write directly to the PIN, not the channel
+  ledcWrite(M1, pulse);
+  ledcWrite(M2, pulse);
+  ledcWrite(M3, pulse);
+  ledcWrite(M4, pulse);
+}
